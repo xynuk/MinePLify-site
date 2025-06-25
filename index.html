@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>MinePLify – Tłumacz configów</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1e1e2f;
+      color: #f0f0f0;
+      margin: 0;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #2e2e40;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 4px 0 20px 0;
+      font-size: 14px;
+      color: #cccccc;
+    }
+
+    input[type="file"] {
+      display: block;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #45a044;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-style: italic;
+      color: #aaa;
+    }
+
+    #output {
+      white-space: pre-wrap;
+      background: #1a1a2d;
+      padding: 20px;
+      border-radius: 6px;
+      margin-top: 20px;
+      border: 1px solid #333;
+      font-family: Consolas, monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    a.download-link {
+      display: inline-block;
+      margin-top: 15px;
+      color: #4caf50;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    footer a {
+      color: #4caf50;
+      text-decoration: none;
+    }
+
+    .model {
+      font-size: 13px;
+      color: #888;
+      margin-top: -10px;
+      margin-bottom: 20px;
+    }
+
+    .apikey-box {
+      margin-bottom: 20px;
+    }
+
+    .apikey-box input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .info {
+      font-size: 13px;
+      color: #bbb;
+      background: #1a1a2d;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 30px;
+    }
+
+    .info a {
+      color: #4caf50;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MinePLify – Tłumacz configów (pluginow)</h1>
+    <p>Wybierz config do przetłumaczenia na język polski.</p>
+    <div class="model">Model: <strong>deepseek/deepseek-r1:free</strong></div>
+
+    <div class="apikey-box">
+      <input type="text" id="apiKeyInput" placeholder="Wpisz swój klucz API">
+      <button onclick="saveApiKey()">Zapisz klucz</button>
+    </div>
+
+    <input type="file" id="fileInput" accept=".txt,.yml">
+    <button onclick="processFile()">Tłumacz</button>
+    <div id="status"></div>
+    <div id="output"></div>
+
+    <div class="info">
+      <h3>🔑 Skąd wziąć API Key?</h3>
+      <ol>
+        <li>Przejdź na stronę: <a href="https://openrouter.ai" target="_blank">https://openrouter.ai</a></li>
+        <li>Zarejestruj się lub zaloguj</li>
+        <li>Przejdź do: <a href="https://openrouter.ai/keys" target="_blank">https://openrouter.ai/keys</a></li>
+        <li>Wygeneruj nowy klucz API</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>
+    Projekt open source: <a href="https://github.com/xynuk/MinePLify-site/" target="_blank">GitHub – MinePLify-site</a>
+  </footer>
+
+  <script>
+    const BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+    function saveApiKey() {
+      const key = document.getElementById("apiKeyInput").value
+      if (!key) {
+        alert("Wpisz klucz!")
+        return
+      }
+      localStorage.setItem("openrouter_api_key", key)
+      alert("Klucz zapisany!")
+    }
+
+    function getApiKey() {
+      return localStorage.getItem("openrouter_api_key") || ""
+    }
+
+    function processFile() {
+      const API_KEY = getApiKey()
+      if (!API_KEY) {
+        alert("Brak klucza API! Wpisz i zapisz klucz.")
+        return
+      }
+
+      const input = document.getElementById('fileInput')
+      const output = document.getElementById('output')
+      const status = document.getElementById('status')
+      output.innerHTML = ''
+      status.textContent = ''
+
+      if (!input.files.length) {
+        alert("Wybierz plik!")
+        return
+      }
+
+      const file = input.files[0]
+      const reader = new FileReader()
+
+      reader.onload = async function () {
+        const content = reader.result
+        const prompt = "Jesteś AI tłumaczącym konfigurację pluginu Minecraft. Spolszcz tylko te fragmenty, które rzeczywiście się edytuje (np. wiadomości, komunikaty, nazwy opcji), zachowując resztę bez zmian. ZWROC TYLKO POPRAWIONY TEKST – CAŁĄ ZAWARTOŚĆ PLIKU, NIC WIĘCEJ."
+
+        const payload = {
+          model: "deepseek/deepseek-r1:free",
+          messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: content }
+          ]
+        }
+
+        const headers = {
+          "Authorization": `Bearer ${API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://github.com/xynuk/MinePLify",
+          "X-Title": "MinePLify"
+        }
+
+        status.textContent = "Tłumaczenie w toku…"
+
+        try {
+          const res = await fetch(BASE_URL, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload)
+          })
+
+          if (!res.ok) throw new Error(await res.text())
+          const data = await res.json()
+          const result = data.choices[0].message.content
+          output.textContent = result
+
+          const a = document.createElement('a')
+          const blob = new Blob([result], { type: 'text/plain;charset=utf-8' })
+          a.href = URL.createObjectURL(blob)
+          a.download = file.name + ".pl.txt"
+          a.textContent = "📥 Pobierz przetłumaczony plik"
+          a.className = "download-link"
+          output.appendChild(document.createElement('br'))
+          output.appendChild(a)
+          status.textContent = "Tłumaczenie zakończone ✅"
+        } catch (err) {
+          status.textContent = "Błąd podczas tłumaczenia ❌"
+          alert("Błąd: " + err.message)
+        }
+      }
+
+      reader.readAsText(file, 'UTF-8')
+    }
+  </script>
+</body>
+</html>
